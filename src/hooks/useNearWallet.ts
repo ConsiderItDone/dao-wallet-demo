@@ -59,10 +59,15 @@ export const useNearWallet = () => {
     return window.near.omniWallet.connect(params);
   }, []);
 
+  const disconnect = useCallback(() => {
+    return window.near.omniWallet.disconnect();
+  }, []);
+
   return {
     initialized: hasInjectedWalletInitialized,
     connectedAccounts,
     network,
     connect,
+    disconnect,
   };
 };

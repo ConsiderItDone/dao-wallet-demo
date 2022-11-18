@@ -3,7 +3,7 @@ import { useNearWallet } from './hooks/useNearWallet';
 import { ClipLoader } from 'react-spinners';
 
 function App() {
-  const { connectedAccounts, network, connect } = useNearWallet();
+  const { connectedAccounts, network, connect, disconnect } = useNearWallet();
 
   const [isConnecting, setIsConnecting] = useState<boolean>(false);
   const [isChangingNetwork, setIsChangingNetwork] = useState<boolean>(false);
@@ -17,6 +17,10 @@ function App() {
     } finally {
       setIsConnecting(false);
     }
+  };
+
+  const handleDisconnect = async () => {
+    await disconnect();
   };
 
   const handleConnectToTestnet = async () => {
@@ -76,7 +80,7 @@ function App() {
               : 'No Accounts'}
           </div>
         </div>
-        <div className="flex flex-col gap-2 m-auto">
+        <div className="flex flex-wrap m-auto gap-4">
           <button
             onClick={handleConnectAccounts}
             className="mt-2 w-fit p-2 bg-blue-600 font-bold mx-auto rounded-[10px] hover:opacity-80 disabled:opacity-50 min-w-[160px]"
@@ -87,6 +91,13 @@ function App() {
             ) : (
               'Connect Accounts'
             )}
+          </button>
+          <button
+            onClick={handleDisconnect}
+            className="mt-2 w-fit p-2 bg-blue-600 font-bold mx-auto rounded-[10px] hover:opacity-80 disabled:opacity-50 min-w-[160px]"
+            disabled={isConnecting}
+          >
+            Disconnect
           </button>
         </div>
       </div>
