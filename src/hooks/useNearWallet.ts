@@ -3,9 +3,13 @@ import {
   InjectedAPIAccount,
   InjectedAPIConnectParams,
   InjectedAPINetwork,
+  InjectedAPISignTransactionParams,
+  InjectedAPISignTransactionsParams,
 } from '../types/injectedWallet.types';
+import { SignedTransaction } from 'near-api-js/lib/transaction';
+import { transactions } from 'near-api-js';
 
-const INJECTED_API_INITIALIZED_EVENT_NAME = 'omniWallet#event-initialized';
+const INJECTED_API_INITIALIZED_EVENT_NAME = 'daoWallet#event-initialized';
 
 export const useNearWallet = () => {
   const [hasInjectedWalletInitialized, setHasInjectedWalletInitialized] =
@@ -23,7 +27,7 @@ export const useNearWallet = () => {
     };
 
     window.addEventListener(INJECTED_API_INITIALIZED_EVENT_NAME, initialize);
-    if (window?.near?.omniWallet?.initialized) {
+    if (window?.near?.daoWallet?.initialized) {
       initialize();
       window.removeEventListener(
         INJECTED_API_INITIALIZED_EVENT_NAME,
@@ -41,27 +45,43 @@ export const useNearWallet = () => {
 
   useEffect(() => {
     if (hasInjectedWalletInitialized) {
-      window.near.omniWallet.on('accountsChanged', ({ accounts }) => {
+      window.near.daoWallet.on('accountsChanged', ({ accounts }) => {
         console.info('Changing accounts event:', { accounts });
         setConnectedAccounts(accounts);
       });
-      window.near.omniWallet.on('networkChanged', ({ network }) => {
+      window.near.daoWallet.on('networkChanged', ({ network }) => {
         console.info('Changing accounts event:', { network });
         setNetwork(network);
       });
 
-      setConnectedAccounts(window.near.omniWallet.accounts);
-      setNetwork(window.near.omniWallet.network);
+      setConnectedAccounts(window.near.daoWallet.accounts);
+      setNetwork(window.near.daoWallet.network);
     }
   }, [hasInjectedWalletInitialized]);
 
   const connect = useCallback((params?: InjectedAPIConnectParams) => {
-    return window.near.omniWallet.connect(params);
+    return window.near.daoWallet.connect(params);
   }, []);
 
   const disconnect = useCallback(() => {
-    return window.near.omniWallet.disconnect();
+    return window.near.daoWallet.disconnect();
   }, []);
+
+  const signTransaction = useCallback(
+    (params: InjectedAPISignTransactionParams): Promise<SignedTransaction> => {
+      return window.near.daoWallet.signTransaction(params);
+    },
+    [],
+  );
+
+  const signTransactions = useCallback(
+    (
+      params: InjectedAPISignTransactionsParams,
+    ): Promise<Array<transactions.SignedTransaction>> => {
+      return window.near.daoWallet.signTransactions(params);
+    },
+    [],
+  );
 
   return {
     initialized: hasInjectedWalletInitialized,
@@ -69,5 +89,7 @@ export const useNearWallet = () => {
     network,
     connect,
     disconnect,
+    signTransaction,
+    signTransactions,
   };
 };

@@ -5,7 +5,7 @@ import { InjectedWallet } from './types/injectedWallet.types';
 declare global {
   interface Window {
     near: {
-      omniWallet: InjectedWallet;
+      daoWallet: InjectedWallet;
     };
   }
 }
