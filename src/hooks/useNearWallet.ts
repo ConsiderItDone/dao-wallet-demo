@@ -88,6 +88,9 @@ export const useNearWallet = () => {
     connectedAccounts,
     network,
     connect,
+    get connected() {
+      return window?.near?.daoWallet?.connected || false;
+    },
     disconnect,
     signTransaction,
     signTransactions,
