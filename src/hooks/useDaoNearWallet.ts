@@ -3,6 +3,8 @@ import {
   InjectedAPIAccount,
   InjectedAPIConnectParams,
   InjectedAPINetwork,
+  InjectedAPISignInParams,
+  InjectedAPISignOutParams,
   InjectedAPISignTransactionParams,
   InjectedAPISignTransactionsParams,
 } from '../types/injectedWallet.types';
@@ -11,7 +13,7 @@ import { transactions } from 'near-api-js';
 
 const INJECTED_API_INITIALIZED_EVENT_NAME = 'daoWallet#event-initialized';
 
-export const useNearWallet = () => {
+export const useDaoNearWallet = () => {
   const [hasInjectedWalletInitialized, setHasInjectedWalletInitialized] =
     useState<boolean>(false);
 
@@ -83,6 +85,20 @@ export const useNearWallet = () => {
     [],
   );
 
+  const signIn = useCallback(
+    (params: InjectedAPISignInParams): Promise<void> => {
+      return window.near.daoWallet.signIn(params);
+    },
+    [],
+  );
+
+  const signOut = useCallback(
+    (params: InjectedAPISignOutParams): Promise<void> => {
+      return window.near.daoWallet.signOut(params);
+    },
+    [],
+  );
+
   return {
     initialized: hasInjectedWalletInitialized,
     connectedAccounts,
@@ -94,5 +110,7 @@ export const useNearWallet = () => {
     disconnect,
     signTransaction,
     signTransactions,
+    signIn,
+    signOut,
   };
 };

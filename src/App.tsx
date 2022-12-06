@@ -1,19 +1,23 @@
 import React, { useState } from 'react';
-import { useNearWallet } from './hooks/useNearWallet';
+import { useDaoNearWallet } from './hooks/useDaoNearWallet';
 import { ClipLoader } from 'react-spinners';
-import { providers, transactions, utils } from 'near-api-js';
+import { keyStores, providers, transactions, utils } from 'near-api-js';
 
 import { Buffer } from 'buffer';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { AccessKeyView } from 'near-api-js/lib/providers/provider';
-import { getRandomInt } from './utils/common';
 
 // @ts-ignore
 window.Buffer = Buffer;
 
-const receiverAccountId = 'polydev.testnet';
-const extraPublicKey = 'ed25519:3kqMb6ZU2j2fCT2nm4LFDtDfqSJcJwCSpGodXmbgx58m';
+const receiverAccountId = 'polydev24.testnet';
+
+const smartContractId = 'guest-book.testnet';
+const smartContractMethods = ['write', 'add'];
+const smartContractFirstMethodArgs = { text: 'Hello' };
+
+const keyStorePrefix = 'daoWallet:keystore:';
 
 function App() {
   const {
@@ -24,13 +28,18 @@ function App() {
     disconnect,
     signTransaction,
     signTransactions,
-  } = useNearWallet();
+    signIn,
+    signOut,
+  } = useDaoNearWallet();
 
   const [isConnecting, setIsConnecting] = useState<boolean>(false);
   const [isSigningTransactions, setIsSigningTransactions] =
     useState<boolean>(false);
+  const [isSigningInOrOut, setIsSigningInOrOut] = useState<boolean>(false);
+  const [isTestingSignIn, setIsTestingSignIn] = useState<boolean>(false);
 
   const [signedTransactions, setSignedTransactions] = useState(null);
+  const [testSignInResult, setTestSignInResult] = useState(null);
 
   const handleDisconnect = async () => {
     await disconnect();
@@ -58,23 +67,29 @@ function App() {
     handleConnect('random-network-123');
 
   const getTransactionsData = async () => {
-    if (!connected) {
-      await handleConnect();
+    try {
+      // TODO: test to work when was not connected initially
+      if (!connected) {
+        await handleConnect();
+      }
+
+      const provider = new providers.JsonRpcProvider({ url: network.nodeUrl });
+
+      const [block, accessKey] = await Promise.all([
+        provider.block({ finality: 'final' }),
+        provider.query<AccessKeyView>({
+          request_type: 'view_access_key',
+          finality: 'final',
+          account_id: connectedAccounts[0].accountId,
+          public_key: connectedAccounts[0].publicKey.toString(),
+        }),
+      ]);
+
+      return { provider, block, accessKey };
+    } catch (error) {
+      console.error('[GetTransactionsData]', error);
+      toast.error(error?.message || 'Failed to get transactions data');
     }
-
-    const provider = new providers.JsonRpcProvider({ url: network.nodeUrl });
-
-    const [block, accessKey] = await Promise.all([
-      provider.block({ finality: 'final' }),
-      provider.query<AccessKeyView>({
-        request_type: 'view_access_key',
-        finality: 'final',
-        account_id: connectedAccounts[0].accountId,
-        public_key: connectedAccounts[0].publicKey.toString(),
-      }),
-    ]);
-
-    return { provider, block, accessKey };
   };
 
   const signAndSendTransactions = async (transactions: any[]) => {
@@ -138,11 +153,11 @@ function App() {
   const handleSignCreateAccountTransaction = async () => {
     const { accessKey, block } = await getTransactionsData();
 
-    // TODO: try adding sub account (e.g. 123.polydev.tesnet)
+    // TODO: try adding sub account (e.g. subaccount.polydev.testnet)
     const transaction = transactions.createTransaction(
       connectedAccounts[0].accountId,
       connectedAccounts[0].publicKey,
-      `polydev${getRandomInt(100, 1000000)}.testnet`,
+      '123', // will fail due to "accountAlreadyExists"
       (accessKey as any).nonce + 1,
       [transactions.createAccount()],
       utils.serialize.base_decode(block.header.hash),
@@ -185,7 +200,6 @@ function App() {
   const handleSignStakeTransaction = async () => {
     const { accessKey, block } = await getTransactionsData();
 
-    // TODO: use real validator
     const validatorPublicKey = connectedAccounts[0].publicKey;
     const transaction = transactions.createTransaction(
       connectedAccounts[0].accountId,
@@ -199,20 +213,40 @@ function App() {
     return signAndSendTransactions([transaction]);
   };
 
-  // TODO: also add and test method for adding full access key
-  const handleSignAddKeyTransaction = async () => {
+  const handleSignAddFunctionCallAccessKeyTransaction = async () => {
     const { accessKey, block } = await getTransactionsData();
 
-    // Will result with error 'key already exist'
+    const keyPair = utils.KeyPair.fromRandom('ed25519');
     const transaction = transactions.createTransaction(
       connectedAccounts[0].accountId,
       connectedAccounts[0].publicKey,
-      receiverAccountId,
+      connectedAccounts[0].accountId,
       (accessKey as any).nonce + 1,
       [
         transactions.addKey(
-          connectedAccounts[0].publicKey,
+          keyPair.getPublicKey(),
           transactions.functionCallAccessKey('zzz', ['www'], null),
+        ),
+      ],
+      utils.serialize.base_decode(block.header.hash),
+    );
+
+    return signAndSendTransactions([transaction]);
+  };
+
+  const handleSignAddFullAccessKeyTransaction = async () => {
+    const { accessKey, block } = await getTransactionsData();
+
+    const keyPair = utils.KeyPair.fromRandom('ed25519');
+    const transaction = transactions.createTransaction(
+      connectedAccounts[0].accountId,
+      connectedAccounts[0].publicKey,
+      connectedAccounts[0].accountId,
+      (accessKey as any).nonce + 1,
+      [
+        transactions.addKey(
+          keyPair.getPublicKey(),
+          transactions.fullAccessKey(),
         ),
       ],
       utils.serialize.base_decode(block.header.hash),
@@ -224,20 +258,54 @@ function App() {
   const handleSignDeleteKeyTransaction = async () => {
     const { accessKey, block } = await getTransactionsData();
 
-    const publicKey = utils.PublicKey.from(extraPublicKey);
+    const keyPair = utils.KeyPair.fromRandom('ed25519');
     const transaction = transactions.createTransaction(
       connectedAccounts[0].accountId,
       connectedAccounts[0].publicKey,
       receiverAccountId,
       (accessKey as any).nonce + 1,
-      [transactions.deleteKey(publicKey)],
+      [transactions.deleteKey(keyPair.getPublicKey())],
       utils.serialize.base_decode(block.header.hash),
     );
 
     return signAndSendTransactions([transaction]);
   };
 
-  // TODO: action delete account
+  // TODO: add signing transaction with action `deleteAccount` (currently not added because it's dangerous)
+
+  const handleSignManyActionsTransaction = async () => {
+    const { accessKey, block } = await getTransactionsData();
+
+    // TODO: use real validator
+    const validatorPublicKey = connectedAccounts[0].publicKey;
+    const keyPair = utils.KeyPair.fromRandom('ed25519');
+    const transaction = transactions.createTransaction(
+      connectedAccounts[0].accountId,
+      connectedAccounts[0].publicKey,
+      receiverAccountId,
+      (accessKey as any).nonce + 1,
+      [
+        transactions.functionCall(
+          'addMessage',
+          { text: 'Hello World!' },
+          utils.format.parseNearAmount('0.00000000003'),
+          utils.format.parseNearAmount('0'),
+        ),
+        // transactions.createAccount(),
+        transactions.deployContract(Uint8Array.from([1, 2, 3])),
+        transactions.transfer(1),
+        transactions.stake(1, validatorPublicKey),
+        transactions.addKey(
+          keyPair.getPublicKey(),
+          transactions.functionCallAccessKey('zzz', ['www'], null),
+        ),
+        // transactions.deleteKey(publicKey), // dangerous action
+      ],
+      utils.serialize.base_decode(block.header.hash),
+    );
+
+    return signAndSendTransactions([transaction]);
+  };
 
   const handleSignTwoTransactions = async () => {
     const { accessKey, block } = await getTransactionsData();
@@ -314,6 +382,121 @@ function App() {
     return signAndSendTransactions([transaction1, transaction2, transaction3]);
   };
 
+  const handleSignIn = async () => {
+    setIsSigningInOrOut(true);
+    try {
+      // Setup keystore to locally store FunctionCall access keys.
+      const keystore = new keyStores.BrowserLocalStorageKeyStore(
+        window.localStorage,
+        keyStorePrefix,
+      );
+
+      if (!connectedAccounts?.length) {
+        throw new Error('No accounts to sign in to');
+      }
+
+      // Request FunctionCall access to the 'smartContractId' smart contract for each account.
+      await signIn({
+        permission: {
+          receiverId: smartContractId,
+          methodNames: smartContractMethods,
+        },
+        accounts: await Promise.all(
+          connectedAccounts.map(async ({ accountId }) => {
+            const keyPair = utils.KeyPair.fromRandom('ed25519');
+            await keystore.setKey(network.networkId, accountId, keyPair);
+
+            return {
+              accountId,
+              publicKey: keyPair.getPublicKey(),
+            };
+          }),
+        ),
+      });
+    } catch (error) {
+      console.error('[HandleSignIn]', error);
+      toast.error(error?.message || 'Failed to sign in');
+    } finally {
+      setIsSigningInOrOut(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    setIsSigningInOrOut(true);
+    try {
+      // Setup keystore to retrieve locally stored FunctionCall access keys.
+      const keystore = new keyStores.BrowserLocalStorageKeyStore(
+        window.localStorage,
+        keyStorePrefix,
+      );
+
+      // Retrieve current network and accounts with FunctionCall access keys.
+      const accountIds = await keystore.getAccounts(network.networkId);
+
+      if (!accountIds.length) {
+        throw new Error('No accounts to sign out of');
+      }
+
+      // Remove FunctionCall access (previously granted via signIn) for each account.
+      await signOut({
+        accounts: await Promise.all(
+          accountIds.map(async (accountId) => {
+            const keyPair = await keystore.getKey(network.networkId, accountId);
+
+            return {
+              accountId,
+              publicKey: keyPair.getPublicKey(),
+            };
+          }),
+        ),
+      });
+    } catch (error) {
+      console.error('[HandleSignOut]', error);
+      toast.error(error?.message || 'Failed to sign out');
+    } finally {
+      setIsSigningInOrOut(false);
+    }
+  };
+
+  const handleTestFunctionCallWithSignIn = async () => {
+    setIsTestingSignIn(true);
+    try {
+      const { accessKey, block, provider } = await getTransactionsData();
+
+      const transaction = transactions.createTransaction(
+        connectedAccounts[0].accountId,
+        connectedAccounts[0].publicKey,
+        smartContractId,
+        (accessKey as any).nonce + 1,
+        [
+          transactions.functionCall(
+            smartContractMethods[0],
+            smartContractFirstMethodArgs,
+            utils.format.parseNearAmount('0.00000000003'),
+            utils.format.parseNearAmount('0'),
+          ),
+        ],
+        utils.serialize.base_decode(block.header.hash),
+      );
+
+      let signedTransaction = await signTransaction({
+        transaction,
+      });
+      console.log(
+        '[HandleTestFunctionCallWithSignIn] sign result:',
+        signedTransactions,
+      );
+      setTestSignInResult(signedTransaction);
+
+      await provider.sendTransaction(signedTransaction);
+    } catch (error) {
+      console.error('[HandleTestFunctionCallWithSignIn]', error);
+      toast.error(error?.message || 'Failed to test sign in');
+    } finally {
+      setIsTestingSignIn(false);
+    }
+  };
+
   return (
     <div className="bg-[#282c34] min-h-screen text-white">
       <div className="grid grid-cols-2 gap-2 w-full">
@@ -338,7 +521,7 @@ function App() {
               : 'No Accounts'}
           </div>
         </div>
-        <div className="flex flex-wrap m-auto gap-4">
+        <div className="flex flex-wrap m-auto gap-4 px-[15px] py-[10px]">
           <button
             onClick={handleConnectAccounts}
             className="mt-2 w-fit p-2 bg-blue-600 font-bold mx-auto rounded-[10px] hover:opacity-80 disabled:opacity-50 min-w-[160px]"
@@ -379,7 +562,7 @@ function App() {
             )}
           </div>
         </div>
-        <div className="flex flex-wrap m-auto gap-4">
+        <div className="flex flex-wrap m-auto gap-4 px-[15px] py-[10px]">
           <button
             onClick={handleConnectToTestnet}
             className="mt-2 h-fit w-fit p-2 bg-blue-600 font-bold mx-auto rounded-[10px] hover:opacity-80 disabled:opacity-50 min-w-[250px]"
@@ -437,7 +620,6 @@ function App() {
                     Transaction:{' '}
                     {JSON.stringify(signedTransaction?.transaction, null, 4)}
                   </div>
-                  <div className="h-0.5 bg-gray-500 w-[100%] rounded-[10px]" />
                 </div>
               ))
             ) : (
@@ -445,7 +627,7 @@ function App() {
             )}
           </div>
         </div>
-        <div className="flex flex-wrap m-auto gap-4">
+        <div className="flex flex-wrap m-auto gap-4 px-[15px] py-[10px]">
           <button
             onClick={handleSignFunctionCallTransaction}
             className="mt-2 h-fit w-fit p-2 bg-blue-600 font-bold mx-auto rounded-[10px] hover:opacity-80 disabled:opacity-50 min-w-[250px]"
@@ -516,7 +698,7 @@ function App() {
             )}
           </button>
           <button
-            onClick={handleSignAddKeyTransaction}
+            onClick={handleSignAddFunctionCallAccessKeyTransaction}
             className="mt-2 h-fit w-fit p-2 bg-blue-600 font-bold mx-auto rounded-[10px] hover:opacity-80 disabled:opacity-50 min-w-[250px]"
             disabled={isSigningTransactions}
           >
@@ -524,7 +706,22 @@ function App() {
               <ClipLoader color="#FFF" size={20} />
             ) : (
               <>
-                Sign <span className="text-amber-500">addKey</span> Transaction
+                Sign <span className="text-amber-500">addKey</span> Transaction{' '}
+                <span className="text-yellow-400">(Function Call Access)</span>
+              </>
+            )}
+          </button>
+          <button
+            onClick={handleSignAddFullAccessKeyTransaction}
+            className="mt-2 h-fit w-fit p-2 bg-blue-600 font-bold mx-auto rounded-[10px] hover:opacity-80 disabled:opacity-50 min-w-[250px]"
+            disabled={isSigningTransactions}
+          >
+            {isSigningTransactions ? (
+              <ClipLoader color="#FFF" size={20} />
+            ) : (
+              <>
+                Sign <span className="text-amber-500">addKey</span> Transaction{' '}
+                <span className="text-yellow-400">(Full Access)</span>
               </>
             )}
           </button>
@@ -542,6 +739,20 @@ function App() {
               </>
             )}
           </button>
+          <button
+            onClick={handleSignManyActionsTransaction}
+            className="mt-2 h-fit w-fit p-2 bg-blue-600 font-bold mx-auto rounded-[10px] hover:opacity-80 disabled:opacity-50 min-w-[250px]"
+            disabled={isSigningTransactions}
+          >
+            {isSigningTransactions ? (
+              <ClipLoader color="#FFF" size={20} />
+            ) : (
+              <>
+                Sign <span className="text-violet-400">Many Actions</span>{' '}
+                Transaction
+              </>
+            )}
+          </button>
 
           <button
             onClick={handleSignTwoTransactions}
@@ -552,7 +763,7 @@ function App() {
               <ClipLoader color="#FFF" size={20} />
             ) : (
               <>
-                Sign <span className="text-lime-400">Two</span> Transaction
+                Sign <span className="text-lime-400">Two</span> Transactions
               </>
             )}
           </button>
@@ -565,12 +776,74 @@ function App() {
               <ClipLoader color="#FFF" size={20} />
             ) : (
               <>
-                Sign <span className="text-lime-400">Three</span> Transaction
+                Sign <span className="text-lime-400">Three</span> Transactions
               </>
             )}
           </button>
         </div>
       </div>
+
+      <div className="h-0.5 bg-gray-500 w-[100%] rounded-[10px]" />
+      <div className="grid grid-cols-2 gap-2 w-full">
+        <div className="flex flex-col p-5">
+          <div className="w-fit mx-auto text-2xl font-bold">Sign In/Out</div>
+          <div className="flex flex-col gap-4 mt-5 w-fit mx-auto">
+            {testSignInResult ? (
+              <div className="flex flex-col text-center">
+                <div className="text-blue-400">
+                  Signature:{' '}
+                  {JSON.stringify(testSignInResult?.signature, null, 4)}
+                </div>
+                <div className="text-fuchsia-400 mt-1">
+                  Transaction:{' '}
+                  {JSON.stringify(testSignInResult?.transaction, null, 4)}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center"></div>
+            )}
+          </div>
+        </div>
+        <div className="flex flex-wrap m-auto gap-4 px-[15px] py-[10px]">
+          <div className="w-fit mx-auto text-xl font-bold">
+            (Should Clear Local Storage Before Testing Sign In/Out)
+          </div>
+          <button
+            onClick={handleSignIn}
+            className="mt-2 h-fit w-fit p-2 bg-blue-600 font-bold mx-auto rounded-[10px] hover:opacity-80 disabled:opacity-50 min-w-[250px]"
+            disabled={isSigningInOrOut}
+          >
+            {isSigningInOrOut ? (
+              <ClipLoader color="#FFF" size={20} />
+            ) : (
+              'Sign In'
+            )}
+          </button>
+          <button
+            onClick={handleSignOut}
+            className="mt-2 h-fit w-fit p-2 bg-blue-600 font-bold mx-auto rounded-[10px] hover:opacity-80 disabled:opacity-50 min-w-[250px]"
+            disabled={isSigningInOrOut}
+          >
+            {isSigningInOrOut ? (
+              <ClipLoader color="#FFF" size={20} />
+            ) : (
+              'Sign Out'
+            )}
+          </button>
+          <button
+            onClick={handleTestFunctionCallWithSignIn}
+            className="mt-2 h-fit w-fit p-2 bg-blue-600 font-bold mx-auto rounded-[10px] hover:opacity-80 disabled:opacity-50 min-w-[250px]"
+            disabled={isSigningInOrOut}
+          >
+            {isTestingSignIn ? (
+              <ClipLoader color="#FFF" size={20} />
+            ) : (
+              'Test Function Call After Sign In'
+            )}
+          </button>
+        </div>
+      </div>
+
       <ToastContainer />
     </div>
   );
