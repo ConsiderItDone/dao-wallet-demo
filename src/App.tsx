@@ -66,6 +66,20 @@ function App() {
   const handleConnectToUnsupportedNetwork = async () =>
     handleConnect('random-network-123');
 
+  const formatTransactionError = (error: any): string | undefined => {
+    if (error?.message) {
+      const msg = error?.message as string;
+      if (
+        msg.includes('access key') &&
+        msg.includes('does not exist while viewing')
+      ) {
+        return 'Connected account is not funded';
+      }
+    }
+
+    return error?.message;
+  };
+
   const getTransactionsData = async () => {
     try {
       // TODO: test to work when was not connected initially
@@ -88,7 +102,8 @@ function App() {
       return { provider, block, accessKey };
     } catch (error) {
       console.error('[GetTransactionsData]', error);
-      toast.error(error?.message || 'Failed to get transactions data');
+      const formattedErrorMessage = formatTransactionError(error);
+      toast.error(formattedErrorMessage || 'Failed to get transactions data');
     }
   };
 
@@ -122,7 +137,8 @@ function App() {
       }
     } catch (error) {
       console.error('[HandleSignTransactions]', error);
-      toast.error(error?.message || 'Failed to sign and send');
+      const formattedErrorMessage = formatTransactionError(error);
+      toast.error(formattedErrorMessage || 'Failed to sign and send');
     } finally {
       setIsSigningTransactions(false);
     }
@@ -392,7 +408,9 @@ function App() {
       );
 
       if (!connectedAccounts?.length) {
-        throw new Error('No accounts to sign in to');
+        throw new Error(
+          'No accounts to sign in to (should connect accounts at first)',
+        );
       }
 
       // Request FunctionCall access to the 'smartContractId' smart contract for each account.
@@ -415,7 +433,8 @@ function App() {
       });
     } catch (error) {
       console.error('[HandleSignIn]', error);
-      toast.error(error?.message || 'Failed to sign in');
+      const formattedErrorMessage = formatTransactionError(error);
+      toast.error(formattedErrorMessage || 'Failed to sign in');
     } finally {
       setIsSigningInOrOut(false);
     }
@@ -452,7 +471,8 @@ function App() {
       });
     } catch (error) {
       console.error('[HandleSignOut]', error);
-      toast.error(error?.message || 'Failed to sign out');
+      const formattedErrorMessage = formatTransactionError(error);
+      toast.error(formattedErrorMessage || 'Failed to sign out');
     } finally {
       setIsSigningInOrOut(false);
     }
@@ -491,7 +511,8 @@ function App() {
       await provider.sendTransaction(signedTransaction);
     } catch (error) {
       console.error('[HandleTestFunctionCallWithSignIn]', error);
-      toast.error(error?.message || 'Failed to test sign in');
+      const formattedErrorMessage = formatTransactionError(error);
+      toast.error(formattedErrorMessage || 'Failed to test sign in');
     } finally {
       setIsTestingSignIn(false);
     }
@@ -610,7 +631,7 @@ function App() {
               signedTransactions.map((signedTransaction, index) => (
                 <div className="flex flex-col text-center" key={index}>
                   <div className="mx-auto rounded-[50%] text-white font-extrabold text-[26px]">
-                    {index + 1} Transaction
+                    Transaction №{index + 1}
                   </div>
                   <div className="text-blue-400">
                     Signature:{' '}
@@ -787,6 +808,9 @@ function App() {
       <div className="grid grid-cols-2 gap-2 w-full">
         <div className="flex flex-col p-5">
           <div className="w-fit mx-auto text-2xl font-bold">Sign In/Out</div>
+          <div className="w-fit mx-auto text-xl font-medium">
+            (Should Clear Local Storage Before Testing Sign In/Out)
+          </div>
           <div className="flex flex-col gap-4 mt-5 w-fit mx-auto">
             {testSignInResult ? (
               <div className="flex flex-col text-center">
@@ -805,9 +829,6 @@ function App() {
           </div>
         </div>
         <div className="flex flex-wrap m-auto gap-4 px-[15px] py-[10px]">
-          <div className="w-fit mx-auto text-xl font-bold">
-            (Should Clear Local Storage Before Testing Sign In/Out)
-          </div>
           <button
             onClick={handleSignIn}
             className="mt-2 h-fit w-fit p-2 bg-blue-600 font-bold mx-auto rounded-[10px] hover:opacity-80 disabled:opacity-50 min-w-[250px]"
