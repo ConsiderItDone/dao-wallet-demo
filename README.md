@@ -1,6 +1,6 @@
 # NEAR Injected Wallet Test App
 
-Project for testing usage of NEAR Injected Wallet API:\
+Project for testing usage of DAO Wallet Injected API:\
 [https://github.com/ConsiderItDone/near-wallet](https://github.com/ConsiderItDone/near-wallet)
 
 ## Available Scripts
