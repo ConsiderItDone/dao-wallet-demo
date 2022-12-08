@@ -84,7 +84,7 @@ function App() {
     try {
       // TODO: test to work when was not connected initially
       if (!connected) {
-        await handleConnect();
+        throw new Error('No connected accounts');
       }
 
       const provider = new providers.JsonRpcProvider({ url: network.nodeUrl });
@@ -451,6 +451,10 @@ function App() {
 
       // Retrieve current network and accounts with FunctionCall access keys.
       const accountIds = await keystore.getAccounts(network.networkId);
+
+      if (!connectedAccounts?.length) {
+        throw new Error('No connected accounts');
+      }
 
       if (!accountIds.length) {
         throw new Error('No accounts to sign out of');
