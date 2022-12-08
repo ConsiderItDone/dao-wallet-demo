@@ -15,7 +15,7 @@ const receiverAccountId = 'polydev24.testnet';
 
 const smartContractId = 'guest-book.testnet';
 const smartContractMethods = ['write', 'add'];
-const smartContractFirstMethodArgs = { text: 'Hello' };
+// const smartContractFirstMethodArgs = { text: 'Hello' };
 
 const keyStorePrefix = 'daoWallet:keystore:';
 
@@ -36,10 +36,10 @@ function App() {
   const [isSigningTransactions, setIsSigningTransactions] =
     useState<boolean>(false);
   const [isSigningInOrOut, setIsSigningInOrOut] = useState<boolean>(false);
-  const [isTestingSignIn, setIsTestingSignIn] = useState<boolean>(false);
+  // const [isTestingSignIn, setIsTestingSignIn] = useState<boolean>(false);
 
   const [signedTransactions, setSignedTransactions] = useState(null);
-  const [testSignInResult, setTestSignInResult] = useState(null);
+  const [testSignInResult /*setTestSignInResult*/] = useState(null);
 
   const handleDisconnect = async () => {
     await disconnect();
@@ -482,45 +482,45 @@ function App() {
     }
   };
 
-  const handleTestFunctionCallWithSignIn = async () => {
-    setIsTestingSignIn(true);
-    try {
-      const { accessKey, block, provider } = await getTransactionsData();
-
-      const transaction = transactions.createTransaction(
-        connectedAccounts[0].accountId,
-        connectedAccounts[0].publicKey,
-        smartContractId,
-        (accessKey as any).nonce + 1,
-        [
-          transactions.functionCall(
-            smartContractMethods[0],
-            smartContractFirstMethodArgs,
-            utils.format.parseNearAmount('0.00000000003'),
-            utils.format.parseNearAmount('0'),
-          ),
-        ],
-        utils.serialize.base_decode(block.header.hash),
-      );
-
-      let signedTransaction = await signTransaction({
-        transaction,
-      });
-      console.log(
-        '[HandleTestFunctionCallWithSignIn] sign result:',
-        signedTransactions,
-      );
-      setTestSignInResult(signedTransaction);
-
-      await provider.sendTransaction(signedTransaction);
-    } catch (error) {
-      console.error('[HandleTestFunctionCallWithSignIn]', error);
-      const formattedErrorMessage = formatTransactionError(error);
-      toast.error(formattedErrorMessage || 'Failed to test sign in');
-    } finally {
-      setIsTestingSignIn(false);
-    }
-  };
+  // const handleTestFunctionCallWithSignIn = async () => {
+  //   setIsTestingSignIn(true);
+  //   try {
+  //     const { accessKey, block, provider } = await getTransactionsData();
+  //
+  //     const transaction = transactions.createTransaction(
+  //       connectedAccounts[0].accountId,
+  //       connectedAccounts[0].publicKey,
+  //       smartContractId,
+  //       (accessKey as any).nonce + 1,
+  //       [
+  //         transactions.functionCall(
+  //           smartContractMethods[0],
+  //           smartContractFirstMethodArgs,
+  //           utils.format.parseNearAmount('0.00000000003'),
+  //           utils.format.parseNearAmount('0'),
+  //         ),
+  //       ],
+  //       utils.serialize.base_decode(block.header.hash),
+  //     );
+  //
+  //     let signedTransaction = await signTransaction({
+  //       transaction,
+  //     });
+  //     console.log(
+  //       '[HandleTestFunctionCallWithSignIn] sign result:',
+  //       signedTransactions,
+  //     );
+  //     setTestSignInResult(signedTransaction);
+  //
+  //     await provider.sendTransaction(signedTransaction);
+  //   } catch (error) {
+  //     console.error('[HandleTestFunctionCallWithSignIn]', error);
+  //     const formattedErrorMessage = formatTransactionError(error);
+  //     toast.error(formattedErrorMessage || 'Failed to test sign in');
+  //   } finally {
+  //     setIsTestingSignIn(false);
+  //   }
+  // };
 
   return (
     <div className="bg-[#282c34] min-h-screen text-white">
@@ -853,17 +853,6 @@ function App() {
               <ClipLoader color="#FFF" size={20} />
             ) : (
               'Sign Out'
-            )}
-          </button>
-          <button
-            onClick={handleTestFunctionCallWithSignIn}
-            className="mt-2 h-fit w-fit p-2 bg-blue-600 font-bold mx-auto rounded-[10px] hover:opacity-80 disabled:opacity-50 min-w-[250px]"
-            disabled={isSigningInOrOut}
-          >
-            {isTestingSignIn ? (
-              <ClipLoader color="#FFF" size={20} />
-            ) : (
-              'Test Function Call After Sign In'
             )}
           </button>
         </div>

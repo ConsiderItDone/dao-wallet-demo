@@ -52,7 +52,7 @@ export const useDaoNearWallet = () => {
         setConnectedAccounts(accounts);
       });
       window.near.daoWallet.on('networkChanged', ({ network }) => {
-        console.info('Changing accounts event:', { network });
+        console.info('Changing network event:', { network });
         setNetwork(network);
       });
 
